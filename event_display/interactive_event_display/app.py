@@ -524,12 +524,8 @@ def add_points(points, n_clicks, fig, fname, eventid):
     if points and n_clicks and len(points) == 2:
         print(points)
         data, n = parse_contents(fname)
-        fig = add_points_trace(fig, data, eventid, points)
+        fig = add_points_trace(fig, data, eventid, points, fname)
         n_clicks = 0
-
-    # if points and n_clicks and len(points) == 2:
-        # n_clicks = 0
-        # fig = add_points_trace(fig, fname, eventid, points)
 
     return fig, n_clicks
 

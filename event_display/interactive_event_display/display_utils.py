@@ -5,6 +5,7 @@ Utility functions for displaying data in the app
 # TODO: remove dependency on h5flow
 import cmasher as cmr
 import h5flow
+import h5py
 import numpy as np
 import pandas as pd
 import plotly
@@ -76,28 +77,20 @@ def add_line_trace(fig, points):
     fig.add_traces(line_trace)
     return fig
 
-def add_points_trace(fig, data, evt, points):
+def add_points_trace(fig, data, evt, points, fname):
 
     fig = go.Figure(fig)
 
     vec = np.fromiter((points[1][k] - points[0][k] for k in ('x', 'y', 'z')), dtype=float)
-    print('vec', vec)
     lvec = np.linalg.norm(vec)
     uvec = vec/lvec
-    print('uvec', uvec)
     orig = np.array([points[0]['x'], points[0]['y'], points[0]['z']])
-    print('orig', orig)
-    print(data)
     prompthits_ev = data["/charge/events", "/charge/calib_prompt_hits", evt]
-    # prompthits_ev = data["/charge/events", "/charge/calib_prompt_hits", evid]
-    print('prompthits_ev', prompthits_ev[:10])
     event = data["charge/events", evt]
-    print('event', event[:10])
     x = prompthits_ev.data["x"].flatten()
     y = prompthits_ev.data["y"].flatten()
     z = prompthits_ev.data["z"].flatten()
     hits = np.column_stack([x,y,z])
-    print(hits[:10])
 
     displacement = hits - orig
     projd = np.dot(displacement, uvec)
@@ -158,6 +151,29 @@ def add_points_trace(fig, data, evt, points):
             hovertemplate="<b>x:%{x:.3f}</b><br>y:%{y:.3f}<br>z:%{z:.3f}<br>E:%{customdata:.3f}",
         )
         fig.add_traces(deselected_trace)
+
+
+        pts = pd.DataFrame(points).to_records()
+
+        oname = fname.replace('.h5', '_evt{}.h5'.format(evt))
+        oname = fname.replace('.hdf5', '_evt{}.hdf5'.format(evt))
+        # mpi must be disabled so that string can be written; not sure how others write strings
+        writer = h5flow.data.H5FlowDataManager(oname, "w", mpi=False)
+        writer.create_dset('/hits/selected', dtype=selected.dtype)
+        writer.create_dset('/hits/deselected', dtype=deselected.dtype)
+        writer.create_dset('/source_file', dtype=h5py.string_dtype())
+        writer.create_dset('/picked/points', dtype=pts.dtype)
+        writer.create_dset('/picked/direction', dtype=uvec.dtype)
+        writer.reserve_data('/hits/selected', len(selected))
+        writer.reserve_data('/hits/deselected', len(deselected))
+        writer.reserve_data('/source_file', 1)
+        writer.reserve_data('/picked/points', 2)
+        writer.reserve_data('/picked/direction', 3)
+        writer.write_data('/hits/selected', range(len(selected)), selected)
+        writer.write_data('/hits/deselected', range(len(deselected)), deselected)
+        writer.write_data('/source_file', range(1), [fname])
+        writer.write_data('/picked/points', range(2), pts)
+        writer.write_data('/picked/direction', range(3), uvec)
 
     return fig
 
