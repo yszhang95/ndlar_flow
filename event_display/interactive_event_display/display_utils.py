@@ -64,6 +64,105 @@ def get_all_beam_triggers(filename):
             all_beam_triggers.append(ev_id)
     return all_beam_triggers
 
+# BEGIN YOUSEN
+def add_line_trace(fig, points):
+    x = [p['x'] for p in points]
+    y = [p['y'] for p in points]
+    z = [p['z'] for p in points]
+
+    line_trace = go.Scatter3d(
+        x=x, y=y, z=z, mode='lines', name='connected line between picked points'
+    )
+    fig.add_traces(line_trace)
+    return fig
+
+def add_points_trace(fig, data, evt, points):
+
+    fig = go.Figure(fig)
+
+    vec = np.fromiter((points[1][k] - points[0][k] for k in ('x', 'y', 'z')), dtype=float)
+    print('vec', vec)
+    lvec = np.linalg.norm(vec)
+    uvec = vec/lvec
+    print('uvec', uvec)
+    orig = np.array([points[0]['x'], points[0]['y'], points[0]['z']])
+    print('orig', orig)
+    print(data)
+    prompthits_ev = data["/charge/events", "/charge/calib_prompt_hits", evt]
+    # prompthits_ev = data["/charge/events", "/charge/calib_prompt_hits", evid]
+    print('prompthits_ev', prompthits_ev[:10])
+    event = data["charge/events", evt]
+    print('event', event[:10])
+    x = prompthits_ev.data["x"].flatten()
+    y = prompthits_ev.data["y"].flatten()
+    z = prompthits_ev.data["z"].flatten()
+    hits = np.column_stack([x,y,z])
+    print(hits[:10])
+
+    displacement = hits - orig
+    projd = np.dot(displacement, uvec)
+    projv = projd[...,np.newaxis] * uvec
+    d = np.linalg.norm(displacement-projv, axis=1)
+    m = (d < 3) & (projd < lvec) & (projd > 0)
+    selected = prompthits_ev[0][m]
+    deselected = prompthits_ev[0][~m]
+    if len(selected):
+        selected_trace = go.Scatter3d(
+            x=selected['x'], y=selected['y'], z=selected['z'],
+            marker_color=selected['E'],
+            marker={
+                "size": 1.75,
+                "opacity": 0.9,
+                "colorscale": colorscale_charge,
+                "colorbar": {
+                    "title": "Hit E [MeV]",
+                    "titlefont": {"size": 12},
+                    "tickfont": {"size": 10},
+                    "thickness": 15,
+                    "len": 0.5,
+                    "xanchor": "left",
+                    "x": 0,
+                },
+            },
+            name="selected prompt hits",
+            mode="markers",
+            showlegend=True,
+            opacity=0.9,
+            customdata=selected["E"],
+            hovertemplate="<b>x:%{x:.3f}</b><br>y:%{y:.3f}<br>z:%{z:.3f}<br>E:%{customdata:.3f}",
+        )
+        fig.add_traces(selected_trace)
+    if len(deselected):
+        deselected_trace = go.Scatter3d(
+            x=deselected['x'], y=deselected['y'], z=deselected['z'],
+            marker_color=deselected['E'],
+            marker={
+                "size": 1.75,
+                "opacity": 0.9,
+                "colorscale": colorscale_charge,
+                "colorbar": {
+                    "title": "Hit E [MeV]",
+                    "titlefont": {"size": 12},
+                    "tickfont": {"size": 10},
+                    "thickness": 15,
+                    "len": 0.5,
+                    "xanchor": "left",
+                    "x": 0,
+                },
+            },
+            name="deselected prompt hits",
+            mode="markers",
+            showlegend=True,
+            opacity=0.9,
+            customdata=deselected["E"],
+            hovertemplate="<b>x:%{x:.3f}</b><br>y:%{y:.3f}<br>z:%{z:.3f}<br>E:%{customdata:.3f}",
+        )
+        fig.add_traces(deselected_trace)
+
+    return fig
+
+# END YOUSEN
+
 
 def create_3d_figure(minerva_data, data, filename, evid):
     fig = go.Figure()
@@ -291,7 +390,7 @@ def create_3d_figure(minerva_data, data, filename, evid):
         #             )
         #         ],
         #     )
-        # ], 
+        # ],
     )
 
     # frames = [

@@ -25,6 +25,8 @@ from display_utils import (
     plot_charge,
     plot_2d_charge,
     plot_charge_energy,
+    add_line_trace,
+    add_points_trace,
 )
 
 from os.path import basename
@@ -50,6 +52,15 @@ app.layout = html.Div(
         dcc.Store(id="minerva-data-length", data=0),
         dcc.Store(id="event-time", data=0),
         dcc.Store(id="sim-version", data=0),
+
+# BEGIN YOUSEN
+        # Store component to save clicked points data (list of points)
+        dcc.Store(id='store-clicked-data', storage_type='memory'),
+
+        # Output area to display clicked points info
+        html.Div(id='click-output'),
+# END YOUSEN
+
         # Header
         html.Div(
             [
@@ -60,6 +71,19 @@ app.layout = html.Div(
                         html.H2(
                             children="2x2 event display", style={"textAlign": "left"}
                         ),
+# BEGIN YOUSEN
+                        # Checkbox to control whether the user can select a point
+                        dcc.Checklist(
+                            id='select-point-checkbox',
+                            options=[{'label': 'Pick last clicked point', 'value': 'select'}],
+                            value=[],  # Initially unchecked
+                            inline=True
+                        ),
+                        html.Button("Clear points", id="clear-points", n_clicks=0),
+                        html.Button("Add line trace", id="add-line-trace", n_clicks=0),
+                        html.Button("Add points trace", id="add-point-trace", n_clicks=0),
+#END YOUSEN
+
                         html.Div(
                             children="", id="filename-div", style={"textAlign": "left"}
                         ),
@@ -216,6 +240,8 @@ app.layout = html.Div(
     prevent_initial_call=True,
 )
 def load_file(n, file_path):
+    if file_path is None:
+        file_path='/home/yousen/Public/ndlar_shared/data/packet-0050015-2024_07_08_13_37_49_CDT.FLOW.hdf5'
     print(file_path)
     if n > 0 and file_path is not None:
         _, num_events = parse_contents(file_path)
@@ -438,6 +464,101 @@ def update_charge_energy_histogram(filename, evid):
         data, _ = parse_contents(filename)
         return plot_charge_energy(data, evid)
     return go.Figure()
+
+# BEGIN YOUSEN
+@app.callback(
+    [ Output('store-clicked-data', 'data'),
+     Output('select-point-checkbox', 'value')],
+    [Input('3d-graph', 'clickData'),
+     Input('select-point-checkbox', 'value'),
+     Input('store-clicked-data', 'data')]
+)
+def store_clicked_data(clickData, checkbox_value, stored_data):
+    if checkbox_value and clickData:
+        # Get the x and y values of the clicked point
+        point = clickData['points'][-1]
+        # Append the new point to the list of stored points
+        if stored_data is None:
+            stored_data = []  # Initialize the list if it is empty
+        # Avoid adding the same point more than once (based on x and y values)
+        if {'x': point['x'], 'y': point['y'], 'z': point['z']} not in stored_data:
+            stored_data.append({'x': point['x'], 'y': point['y'], 'z': point['z']})
+        # After selecting a point, uncheck the checkbox
+        return stored_data, []  # Empty value unchecks the checkbox
+    return stored_data, checkbox_value  # Keep checkbox state if no point is selected
+# Callback to display all clicked point data
+@app.callback(
+    Output('click-output', 'children'),
+    Input('store-clicked-data', 'data')
+)
+def display_clicked_data(data):
+    if data:
+        dstr = [f'(x={d["x"]}, y={d["y"]}, z={d["z"]})' for d in data]
+        msg = f"Clicked Points: {', '.join(dstr)}"
+        return msg
+    return "Click a point on the graph."
+# Callback to clear picked points
+@app.callback(
+    [Output('store-clicked-data', 'data', allow_duplicate=True),
+     Output('clear-points', 'n_clicks', allow_duplicate=True)],
+    [ Input('store-clicked-data', 'data'),
+     Input('clear-points', 'n_clicks')]
+)
+def clear_clicked_data(data, n_clicks):
+    if data and n_clicks:
+        return [], 0
+    return data, n_clicks
+
+@app.callback(
+    [Output('3d-graph', 'figure', allow_duplicate=True),
+     Output('add-point-trace', 'n_clicks', allow_duplicate=True)],
+    [ Input('store-clicked-data', 'data'),
+     Input('add-point-trace', 'n_clicks'),
+     Input('3d-graph', 'figure'),
+    Input("filename", "data"),
+    Input("event-id", "data")],
+    prevent_initial_call=True
+)
+def add_points(points, n_clicks, fig, fname, eventid):
+
+    if points and n_clicks and len(points) == 2:
+        print(points)
+        data, n = parse_contents(fname)
+        fig = add_points_trace(fig, data, eventid, points)
+        n_clicks = 0
+
+    # if points and n_clicks and len(points) == 2:
+        # n_clicks = 0
+        # fig = add_points_trace(fig, fname, eventid, points)
+
+    return fig, n_clicks
+
+@app.callback(
+    [Output('3d-graph', 'figure', allow_duplicate=True),
+     Output('add-line-trace', 'n_clicks', allow_duplicate=True)],
+    [ Input('store-clicked-data', 'data'),
+     Input('add-line-trace', 'n_clicks'),
+     Input('3d-graph', 'figure'),
+    Input("filename", "data"),
+    Input("event-id", "data")],
+    prevent_initial_call=True
+)
+def add_line(points, n_clicks, fig, fname, eventid):
+
+    # # Select the hits for the current event
+    # beam_triggers = get_all_beam_triggers(filename)
+    # prompthits_ev = data["charge/events", "charge/calib_prompt_hits", evid]
+    # print(prompthits_ev.data.dtype)
+    # print(prompthits_ev.data.shape)
+    # print(type(prompthits_ev.data))
+
+    fig = go.Figure(fig)
+    if points and n_clicks and len(points) == 2:
+        n_clicks = 0
+        fig = add_line_trace(fig, points)
+
+    return fig, n_clicks
+# END YOUSEN
 
 
 # Cleaning up
