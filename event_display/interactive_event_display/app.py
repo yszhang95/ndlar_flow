@@ -156,21 +156,26 @@ app.layout = html.Div(
                 # First row
                 html.Div(
                     [
+                        # 2D plots on the right
+                        html.Div(
+                            dcc.Graph(id="2d-plots"),
+                            # style={"height": "65vh", "width": "28vw", "float": "right"},
+                        ),
+                    ],
+                    style={"display": "flex"},
+                ),
+                html.Div(
+                    [
                         # Large 3D graph on the left
                         html.Div(
                             dcc.Graph(
                                 id="3d-graph",
                                 style={
-                                    "height": "65vh",
+                                    "height": "100vh",
                                     "width": "68vw",
                                     "float": "left",
                                 },
                             ),
-                        ),
-                        # 2D plots on the right
-                        html.Div(
-                            dcc.Graph(id="2d-plots"),
-                            style={"height": "65vh", "width": "28vw", "float": "right"},
                         ),
                     ],
                     style={"display": "flex"},
@@ -570,4 +575,4 @@ def clean_cache():
 
 # Run the app
 if __name__ == "__main__":
-    app.run(debug=True, host="127.0.0.1", port=8080)
+    app.run(debug=True, host="127.0.0.1", port=8081)
